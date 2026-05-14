@@ -35,10 +35,12 @@ export function SearchPanel({ status, onStart, onStop }: SearchPanelProps) {
       return;
     }
 
+    // PRD §6: keyword는 중지역명+소지역명만 사용 (대지역명 제외)
+    // 예: "하남시 망월동" (서울특별시 등 대지역명 포함 시 검색 결과 0건)
     const parts: string[] = [];
-    if (region.large) parts.push(region.large.name.trim());
     if (region.mid) parts.push(region.mid.name.trim());
     if (region.small) parts.push(region.small.name.trim());
+    if (parts.length === 0 && region.large) parts.push(region.large.name.trim());
     const keyword = parts.join(' ');
 
     const space = SPACE_OPTIONS[spaceIndex];
@@ -53,9 +55,9 @@ export function SearchPanel({ status, onStart, onStop }: SearchPanelProps) {
 
   const getKeywordPreview = () => {
     const parts: string[] = [];
-    if (region.large) parts.push(region.large.name.trim());
     if (region.mid) parts.push(region.mid.name.trim());
     if (region.small) parts.push(region.small.name.trim());
+    if (parts.length === 0 && region.large) parts.push(region.large.name.trim());
     return parts.length > 0 ? parts.join(' ') : null;
   };
 

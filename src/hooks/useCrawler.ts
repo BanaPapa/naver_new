@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
-import { Property, LogEntry, ProgressInfo, DoneSummary, CrawlerConfig } from '../types';
-import { startCrawler, stopCrawler } from '../services/api';
+import { Property } from '../types';
+import { CrawlerService, LogEntry, ProgressInfo, DoneSummary } from '../services/crawler';
+import { CrawlerConfig } from '../types';
 
 export type CrawlerStatus = 'idle' | 'running' | 'done' | 'stopped' | 'error';
 
@@ -23,11 +24,9 @@ export function useCrawler() {
     errorMessage: null,
   });
 
-  const abortRef = useRef<AbortController | null>(null);
+  const crawlerRef = useRef<CrawlerService | null>(null);
 
   const start = useCallback((config: CrawlerConfig) => {
-    abortRef.current = new AbortController();
-
     setState({
       status: 'running',
       logs: [],
@@ -37,46 +36,62 @@ export function useCrawler() {
       errorMessage: null,
     });
 
-    startCrawler(
-      config,
-      (event) => {
-        if (event.type === 'log') {
-          setState((prev) => ({
-            ...prev,
-            logs: [...prev.logs.slice(-499), event.payload],
-          }));
-        } else if (event.type === 'progress') {
-          setState((prev) => ({ ...prev, progress: event.payload }));
-        } else if (event.type === 'property') {
-          setState((prev) => ({
-            ...prev,
-            properties: [...prev.properties, event.payload],
-          }));
-        } else if (event.type === 'done') {
-          setState((prev) => ({
-            ...prev,
-            status: 'done',
-            summary: event.payload,
-          }));
-        } else if (event.type === 'error') {
-          setState((prev) => ({
-            ...prev,
-            status: 'error',
-            errorMessage: event.payload,
-          }));
-        }
+    const crawler = new CrawlerService({
+      keyword: config.keyword,
+      tradeType: config.tradeType,
+      realEstateType: config.realEstateType,
+      spcMin: config.spcMin,
+      spcMax: config.spcMax,
+      onLog: (msg: LogEntry) => {
+        setState((prev) => ({
+          ...prev,
+          logs: [...prev.logs.slice(-499), msg],
+        }));
       },
-      abortRef.current.signal,
-    );
+      onProgress: (progress: ProgressInfo) => {
+        setState((prev) => ({ ...prev, progress }));
+      },
+      onProperty: (property: Property) => {
+        setState((prev) => ({
+          ...prev,
+          properties: [...prev.properties, property],
+        }));
+      },
+      onDone: (summary: DoneSummary) => {
+        setState((prev) => ({
+          ...prev,
+          status: 'done',
+          summary,
+        }));
+      },
+      onError: (err: string) => {
+        setState((prev) => ({
+          ...prev,
+          status: 'error',
+          errorMessage: err,
+        }));
+      },
+    });
+
+    crawlerRef.current = crawler;
+    crawler.start().catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      setState((prev) => ({
+        ...prev,
+        status: 'error',
+        errorMessage: message,
+      }));
+    });
   }, []);
 
-  const stop = useCallback(async () => {
-    abortRef.current?.abort();
-    await stopCrawler();
+  const stop = useCallback(() => {
+    crawlerRef.current?.stop();
     setState((prev) => ({ ...prev, status: 'stopped' }));
   }, []);
 
   const reset = useCallback(() => {
+    crawlerRef.current?.stop();
+    crawlerRef.current = null;
     setState({
       status: 'idle',
       logs: [],

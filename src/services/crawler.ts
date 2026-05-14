@@ -1,18 +1,6 @@
-import { searchComplexes, getArticleList, ComplexItem } from './naverApi.js';
-import { normalizeArticleInfo, Property } from './normalizer.js';
-
-export interface CrawlerOptions {
-  keyword: string;
-  tradeType: string;
-  realEstateType: string;
-  spcMin: number;
-  spcMax: number;
-  onLog: (msg: LogEntry) => void;
-  onProgress: (progress: ProgressInfo) => void;
-  onProperty: (property: Property) => void;
-  onDone: (summary: DoneSummary) => void;
-  onError: (err: string) => void;
-}
+import { searchComplexes, getArticleList, ComplexItem } from './naverApi';
+import { normalizeArticleInfo } from './normalizer';
+import { Property } from '../types';
 
 export interface LogEntry {
   level: 'info' | 'warn' | 'error' | 'success';
@@ -34,11 +22,20 @@ export interface DoneSummary {
   duration: number;
 }
 
-function log(
-  onLog: (msg: LogEntry) => void,
-  level: LogEntry['level'],
-  message: string,
-) {
+export interface CrawlerOptions {
+  keyword: string;
+  tradeType: string;
+  realEstateType: string;
+  spcMin: number;
+  spcMax: number;
+  onLog: (msg: LogEntry) => void;
+  onProgress: (progress: ProgressInfo) => void;
+  onProperty: (property: Property) => void;
+  onDone: (summary: DoneSummary) => void;
+  onError: (err: string) => void;
+}
+
+function log(onLog: (msg: LogEntry) => void, level: LogEntry['level'], message: string) {
   onLog({ level, message, time: new Date().toISOString() });
 }
 
@@ -69,7 +66,7 @@ export class CrawlerService {
     this._running = true;
     this._stopRequested = false;
     const startTime = Date.now();
-    const { keyword, tradeType, realEstateType, spcMin, spcMax } = this.opts;
+    const { keyword, tradeType } = this.opts;
 
     let totalProperties = 0;
     const complexes: ComplexItem[] = [];
@@ -137,35 +134,23 @@ export class CrawlerService {
         propertyCount: totalProperties,
       });
 
-      let artPage = 0;
       let artHasNext = true;
-      let seed: string | undefined;
-      let lastInfo: string | undefined;
+      let lastInfoCursor: unknown[] = [];
 
       while (artHasNext && !this._stopRequested) {
         try {
           const artResult = await getArticleList({
             complexNumber: complex.complexNumber,
-            tradeType,
-            realEstateType,
-            spcMin,
-            spcMax,
-            page: artPage,
+            tradeTypes: [tradeType],
+            lastInfoCursor,
             size: 20,
-            seed,
-            lastInfo,
           });
 
           for (const item of artResult.list) {
             const mainInfo = item.representativeArticleInfo;
             const realtorCount = item.duplicatedArticleInfo?.realtorCount ?? 1;
 
-            const property = normalizeArticleInfo(
-              mainInfo,
-              complex.complexNumber,
-              realtorCount,
-            );
-            // complexName이 없으면 검색 결과에서 채움
+            const property = normalizeArticleInfo(mainInfo, complex.complexNumber, realtorCount);
             if (!property.complexName) property.complexName = complex.complexName;
 
             this.opts.onProperty(property);
@@ -182,9 +167,7 @@ export class CrawlerService {
           }
 
           artHasNext = artResult.hasNextPage;
-          seed = artResult.seed;
-          lastInfo = artResult.lastInfo ? JSON.stringify(artResult.lastInfo) : undefined;
-          artPage++;
+          lastInfoCursor = artResult.lastInfo ?? [];
 
           if (artHasNext) await randomDelay(500, 1500);
         } catch (err: unknown) {
@@ -198,11 +181,7 @@ export class CrawlerService {
         }
       }
 
-      log(
-        this.opts.onLog,
-        'info',
-        `  → 누적 매물: ${totalProperties}건`,
-      );
+      log(this.opts.onLog, 'info', `  → 누적 매물: ${totalProperties}건`);
 
       // 단지 간 딜레이
       if (i < complexes.length - 1 && !this._stopRequested) {

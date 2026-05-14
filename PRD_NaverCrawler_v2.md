@@ -130,37 +130,55 @@ GET /search/autocomplete/complexes?keyword={keyword}&size={size}&page={page}
 
 ---
 
-### 3.2 개별 매물 리스트 (핵심 API) ✅ 확정
+### 3.2 개별 매물 리스트 (핵심 API) ✅ 실측 확정
 
 ```
-GET /complex/article/list?complexNumber={complexNumber}&tradeType={tradeType}&realEstateType={realEstateType}&spcMin={spcMin}&spcMax={spcMax}&order=prc&page=0&size=20
+POST /complex/article/list
+Content-Type: application/json
 ```
 
-| 파라미터 | 타입 | 설명 | 예시 |
+**Request Body:**
+
+```json
+{
+  "complexNumber": "27479",
+  "tradeTypes": ["A1"],
+  "pyeongTypes": [],
+  "dongNumbers": [],
+  "userChannelType": "PC",
+  "articleSortType": "RANKING_DESC",
+  "lastInfo": [],
+  "size": 20
+}
+```
+
+| 필드 | 타입 | 설명 | 예시 |
 |---|---|---|---|
-| complexNumber | number | 단지 고유번호 | `106200` |
-| tradeType | string | 거래유형 | `A1` |
-| realEstateType | string | 부동산유형 | `APT:JGC:JGB` |
-| spcMin | number | 최소 공급면적 | `0` |
-| spcMax | number | 최대 공급면적 | `1000` |
-| order | string | 정렬 기준 | `prc` |
-| page | number | 페이지 번호 | `0` |
+| complexNumber | **string** | 단지 고유번호 (문자열 필수) | `"27479"` |
+| tradeTypes | string[] | 거래유형 배열 | `["A1"]`, `["A1","B1"]` |
+| pyeongTypes | array | 평형 필터 (빈 배열 = 전체) | `[]` |
+| dongNumbers | array | 동 필터 (빈 배열 = 전체) | `[]` |
+| userChannelType | string | 채널 구분 | `"PC"` |
+| articleSortType | string | 정렬 기준 | `"RANKING_DESC"` |
+| lastInfo | array | 커서 (첫 요청: `[]`, 이후: 이전 응답값) | `[]` |
 | size | number | 페이지당 결과 수 | `20` |
 
-#### 페이지네이션 (커서 기반) ✅ 확정
+> ⚠️ **주의**: `complexNumber`는 반드시 **문자열**로 전송. 숫자로 보내면 400 에러 발생.
+
+#### 페이지네이션 (커서 기반) ✅ 실측 확정
 
 첫 페이지 응답에서 `seed`와 `lastInfo`가 반환됨:
 ```json
 {
-  "seed": "67416e14-f59e-427a-a7ba-3c3c11858e49",
-  "lastInfo": [0, -579.5408896613259, "2620241462"],
+  "seed": "975ab210-b451-4392-ab0a-1042b37d84b4",
+  "lastInfo": [0, -559.9365442079526, "2620761116"],
   "hasNextPage": false,
-  "totalCount": 23,
+  "totalCount": 15,
   "list": [...]
 }
 ```
 
-다음 페이지 요청 시 `seed`와 `lastInfo`를 쿼리 파라미터로 전달.
+다음 페이지 요청 시 `lastInfo` 배열을 그대로 body의 `lastInfo` 필드로 전달. (`seed`는 요청에 불필요)
 
 #### 응답 항목 구조 (실제 캡처 데이터 기반)
 

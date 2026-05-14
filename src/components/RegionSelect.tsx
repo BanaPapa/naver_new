@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { RegionItem, RegionSelection } from '../types';
-import { getRegions } from '../services/api';
+import { getRegions } from '../services/kbland';
 
 interface RegionSelectProps {
   value: RegionSelection;

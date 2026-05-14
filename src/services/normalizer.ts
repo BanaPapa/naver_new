@@ -1,37 +1,5 @@
-import { RawArticleInfo } from './naverApi.js';
-
-export interface Property {
-  complexNumber: number;
-  complexName: string;
-  dongName: string;
-  articleNumber: string;
-  realEstateType: string;
-  tradeType: string;
-  dealPrice: number;
-  warrantyPrice: number;
-  rentPrice: number;
-  managementFee: number;
-  priceChangeStatus: number;
-  priceChangeHistories?: Array<{ modifiedDate: string; dealPrice: number }>;
-  supplySpace: number;
-  exclusiveSpace: number;
-  supplySpaceName: string;
-  exclusiveSpaceName: string;
-  direction: string;
-  floorInfo: string;
-  targetFloor: string;
-  totalFloor: string;
-  address: string;
-  lat: number;
-  lng: number;
-  articleFeature: string;
-  brokerageName: string;
-  brokerName: string;
-  confirmDate: string;
-  buildDate: string;
-  realtorCount: number;
-  verificationType: string;
-}
+import { Property } from '../types';
+import { RawArticleInfo } from './naverApi';
 
 export function normalizeArticleInfo(
   info: RawArticleInfo,

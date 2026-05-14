@@ -1,103 +1,7 @@
-import { RegionItem, CrawlerConfig, SSEEvent } from '../types';
-
-const BASE = '/api';
+import { Property } from '../types';
 
 // =============================================
-// 헬스 체크
-// =============================================
-export async function checkHealth(): Promise<{ status: string; cookie: boolean }> {
-  const res = await fetch(`${BASE}/health`);
-  return res.json();
-}
-
-// =============================================
-// 지역 API
-// =============================================
-export async function getRegions(step: 1 | 2 | 3, code?: string): Promise<RegionItem[]> {
-  const params = new URLSearchParams({ step: String(step) });
-  if (code) params.set('code', code);
-  const res = await fetch(`${BASE}/region?${params}`);
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error);
-  return json.data;
-}
-
-// =============================================
-// 쿠키 설정 API
-// =============================================
-export async function getCookieStatus(): Promise<{ hasCookie: boolean; preview: string }> {
-  const res = await fetch(`${BASE}/settings/cookie-status`);
-  const json = await res.json();
-  return json;
-}
-
-export async function saveCookie(cookie: string): Promise<void> {
-  const res = await fetch(`${BASE}/settings/cookie`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cookie }),
-  });
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error);
-}
-
-// =============================================
-// 크롤러 제어
-// =============================================
-export function startCrawler(
-  config: CrawlerConfig,
-  onEvent: (event: SSEEvent) => void,
-  signal?: AbortSignal,
-): void {
-  const ctrl = new AbortController();
-  if (signal) {
-    signal.addEventListener('abort', () => ctrl.abort());
-  }
-
-  fetch(`${BASE}/crawler/start`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
-    signal: ctrl.signal,
-  }).then(async (res) => {
-    if (!res.body) return;
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(trimmed.slice(6)) as SSEEvent;
-            onEvent(data);
-          } catch {
-            // ignore parse errors
-          }
-        }
-      }
-    }
-  }).catch((err) => {
-    if (err.name !== 'AbortError') {
-      onEvent({ type: 'error', payload: err.message });
-    }
-  });
-}
-
-export async function stopCrawler(): Promise<void> {
-  await fetch(`${BASE}/crawler/stop`, { method: 'POST' });
-}
-
-// =============================================
-// 유틸리티
+// 가격 포맷
 // =============================================
 export function formatPrice(price: number): string {
   if (price === 0) return '-';
@@ -109,7 +13,10 @@ export function formatPrice(price: number): string {
   return `${Math.round(price / 10000).toLocaleString()}만`;
 }
 
-export function exportCSV(properties: import('../types').Property[]): void {
+// =============================================
+// CSV 내보내기
+// =============================================
+export function exportCSV(properties: Property[]): void {
   if (properties.length === 0) return;
 
   const headers = [
@@ -142,7 +49,10 @@ export function exportCSV(properties: import('../types').Property[]): void {
   URL.revokeObjectURL(url);
 }
 
-export function exportJSON(properties: import('../types').Property[]): void {
+// =============================================
+// JSON 내보내기
+// =============================================
+export function exportJSON(properties: Property[]): void {
   if (properties.length === 0) return;
   const json = JSON.stringify(properties, null, 2);
   const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });

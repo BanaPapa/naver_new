@@ -1,44 +1,38 @@
 import React, { useEffect, useState } from 'react';
-import { getCookieStatus, saveCookie } from '../services/api';
+import { getStoredCookie, setStoredCookie, clearStoredCookie } from '../services/naverApi';
 
 export function CookieSettings() {
   const [hasCookie, setHasCookie] = useState(false);
   const [preview, setPreview] = useState('');
   const [input, setInput] = useState('');
-  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const loadStatus = () => {
-    getCookieStatus()
-      .then((s) => {
-        setHasCookie(s.hasCookie);
-        setPreview(s.preview);
-      })
-      .catch(console.error);
+    const cookie = getStoredCookie();
+    setHasCookie(!!cookie);
+    setPreview(cookie ? cookie.slice(0, 40) + '...' : '');
   };
 
   useEffect(() => {
     loadStatus();
   }, []);
 
-  const handleSave = async () => {
-    if (!input.trim()) {
+  const handleSave = () => {
+    const trimmed = input.trim();
+    if (!trimmed) {
       setMessage({ type: 'err', text: '쿠키를 입력해주세요' });
       return;
     }
-    setSaving(true);
-    setMessage(null);
-    try {
-      await saveCookie(input.trim());
-      setMessage({ type: 'ok', text: '쿠키가 저장되었습니다' });
-      setInput('');
-      loadStatus();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setMessage({ type: 'err', text: msg });
-    } finally {
-      setSaving(false);
-    }
+    setStoredCookie(trimmed);
+    setMessage({ type: 'ok', text: '쿠키가 저장되었습니다 (브라우저에 보관)' });
+    setInput('');
+    loadStatus();
+  };
+
+  const handleClear = () => {
+    clearStoredCookie();
+    setMessage({ type: 'ok', text: '쿠키가 삭제되었습니다' });
+    loadStatus();
   };
 
   return (
@@ -65,6 +59,9 @@ export function CookieSettings() {
             <li>아무 API 요청 클릭 → Request Headers에서 <code>Cookie</code> 복사</li>
             <li>아래 텍스트박스에 붙여넣기 후 저장</li>
           </ol>
+          <p className="settings-note">
+            💡 쿠키는 이 브라우저의 <strong>localStorage</strong>에만 저장되며 서버로 전송되지 않습니다.
+          </p>
         </div>
 
         <div className="form-group">
@@ -84,13 +81,20 @@ export function CookieSettings() {
           </div>
         )}
 
-        <button
-          className="btn-primary"
-          onClick={handleSave}
-          disabled={saving || !input.trim()}
-        >
-          {saving ? '저장 중...' : '쿠키 저장'}
-        </button>
+        <div className="settings-actions">
+          <button
+            className="btn-primary"
+            onClick={handleSave}
+            disabled={!input.trim()}
+          >
+            쿠키 저장
+          </button>
+          {hasCookie && (
+            <button className="btn-ghost" onClick={handleClear}>
+              쿠키 삭제
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

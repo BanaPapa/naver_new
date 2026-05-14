@@ -1,13 +1,6 @@
-import axios from 'axios';
+import { RegionItem } from '../types';
 
 const KB_BASE = 'https://api.kbland.kr/land-price/price/areaName';
-const KB_HEADERS = { 'User-Agent': 'Mobile' };
-
-export interface RegionItem {
-  code: string;
-  name: string;
-  level: 1 | 2 | 3;
-}
 
 interface KBRawItem {
   대지역명: string;
@@ -16,19 +9,24 @@ interface KBRawItem {
   법정동코드: string;
 }
 
-export async function getRegions(step: number, parentCode?: string): Promise<RegionItem[]> {
-  const params: Record<string, string> = {};
+export async function getRegions(step: 1 | 2 | 3, parentCode?: string): Promise<RegionItem[]> {
+  const params = new URLSearchParams();
   if (step > 1 && parentCode) {
-    params['법정동코드'] = parentCode;
+    params.set('법정동코드', parentCode);
   }
 
-  const resp = await axios.get(KB_BASE, {
-    headers: KB_HEADERS,
-    params,
-    timeout: 10000,
+  const url = step > 1 ? `${KB_BASE}?${params.toString()}` : KB_BASE;
+
+  const resp = await fetch(url, {
+    headers: { 'User-Agent': 'Mobile' },
   });
 
-  const items: KBRawItem[] = resp.data?.dataBody?.data ?? [];
+  if (!resp.ok) {
+    throw new Error(`KB Land API 오류: ${resp.status}`);
+  }
+
+  const json = await resp.json();
+  const items: KBRawItem[] = json?.dataBody?.data ?? [];
 
   const seen = new Set<string>();
   const result: RegionItem[] = [];
@@ -36,7 +34,6 @@ export async function getRegions(step: number, parentCode?: string): Promise<Reg
   for (const item of items) {
     if (step === 1) {
       const name = item.대지역명.trim();
-      // 대지역 코드는 법정동코드의 첫 2자리
       const code = item.법정동코드.substring(0, 2);
       if (!seen.has(code)) {
         seen.add(code);
