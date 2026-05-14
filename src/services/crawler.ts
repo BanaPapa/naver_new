@@ -1,6 +1,6 @@
-import { searchComplexes, getArticleList, ComplexItem } from './naverApi';
+import { getComplexClusters, getArticleList, ComplexItem } from './naverApi';
 import { normalizeArticleInfo } from './normalizer';
-import { Property } from '../types';
+import { Property, NAVER_TYPE_MAP, isExclusiveSpaceType } from '../types';
 
 export interface LogEntry {
   level: 'info' | 'warn' | 'error' | 'success';
@@ -23,7 +23,8 @@ export interface DoneSummary {
 }
 
 export interface CrawlerOptions {
-  keyword: string;
+  legalDivisionCode: string;
+  legalDivisionName: string;
   tradeType: string;
   realEstateType: string;
   spcMin: number;
@@ -66,56 +67,59 @@ export class CrawlerService {
     this._running = true;
     this._stopRequested = false;
     const startTime = Date.now();
-    const { keyword, tradeType } = this.opts;
+    const { legalDivisionCode, legalDivisionName, tradeType, realEstateType } = this.opts;
 
-    let totalProperties = 0;
-    const complexes: ComplexItem[] = [];
-
-    // Phase 1: 단지 목록 수집
-    log(this.opts.onLog, 'info', `🔍 단지 검색 시작: "${keyword}"`);
-    let page = 0;
-    let hasNextPage = true;
-
-    while (hasNextPage && !this._stopRequested) {
-      try {
-        const result = await searchComplexes(keyword, page, 10);
-        complexes.push(...result.list);
-        hasNextPage = result.hasNextPage;
-
-        this.opts.onProgress({
-          phase: 'search',
-          current: complexes.length,
-          total: result.totalCount,
-          propertyCount: totalProperties,
-        });
-
-        log(
-          this.opts.onLog,
-          'info',
-          `  단지 ${complexes.length}/${result.totalCount} 수집됨 (페이지 ${page + 1})`,
-        );
-
-        page++;
-        if (hasNextPage) await randomDelay(500, 1500);
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        log(this.opts.onLog, 'error', `단지 검색 오류: ${message}`);
-        break;
-      }
-    }
-
-    if (this._stopRequested) {
-      this.opts.onDone({
-        totalComplexes: complexes.length,
-        totalProperties,
-        duration: Date.now() - startTime,
-      });
+    const naverTypes = NAVER_TYPE_MAP[realEstateType] ?? [];
+    if (naverTypes.length === 0) {
+      const msg = `상품 유형 코드 미확인: ${realEstateType}`;
+      log(this.opts.onLog, 'error', msg);
+      this.opts.onError(msg);
+      this._running = false;
       return;
     }
 
+    const filtersExclusiveSpace = isExclusiveSpaceType(realEstateType);
+    let totalProperties = 0;
+
+    // ─── Phase 1: complexClusters로 단지 목록 수집 ───
+    log(
+      this.opts.onLog,
+      'info',
+      `🔍 단지 검색 시작 (유형: ${naverTypes.join('/')}, 법정동: ${legalDivisionCode})`,
+    );
+
+    let complexes: ComplexItem[] = [];
+    try {
+      complexes = await getComplexClusters({
+        tradeTypes: [tradeType],
+        naverTypes,
+        legalDivisionCode,
+        legalDivisionName,
+        filtersExclusiveSpace,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log(this.opts.onLog, 'error', `단지 검색 오류: ${message}`);
+      this.opts.onError(message);
+      this._running = false;
+      return;
+    }
+
+    if (this._stopRequested) {
+      this.opts.onDone({ totalComplexes: 0, totalProperties: 0, duration: Date.now() - startTime });
+      return;
+    }
+
+    this.opts.onProgress({
+      phase: 'search',
+      current: complexes.length,
+      total: complexes.length,
+      propertyCount: 0,
+    });
+
     log(this.opts.onLog, 'success', `✅ 총 ${complexes.length}개 단지 수집 완료`);
 
-    // Phase 2: 각 단지별 매물 수집
+    // ─── Phase 2: 각 단지별 매물 수집 ───
     for (let i = 0; i < complexes.length; i++) {
       if (this._stopRequested) break;
 
@@ -123,14 +127,14 @@ export class CrawlerService {
       log(
         this.opts.onLog,
         'info',
-        `📦 [${i + 1}/${complexes.length}] ${complex.complexName} (${complex.complexNumber}) 매물 수집 중...`,
+        `📦 [${i + 1}/${complexes.length}] 단지 #${complex.complexNumber} 매물 수집 중...`,
       );
 
       this.opts.onProgress({
         phase: 'crawl',
         current: i + 1,
         total: complexes.length,
-        complexName: complex.complexName,
+        complexName: complex.complexName || `#${complex.complexNumber}`,
         propertyCount: totalProperties,
       });
 
@@ -151,16 +155,16 @@ export class CrawlerService {
             const realtorCount = item.duplicatedArticleInfo?.realtorCount ?? 1;
 
             const property = normalizeArticleInfo(mainInfo, complex.complexNumber, realtorCount);
-            if (!property.complexName) property.complexName = complex.complexName;
+            if (!complex.complexName && property.complexName) {
+              complex.complexName = property.complexName;
+            }
 
             this.opts.onProperty(property);
             totalProperties++;
 
-            // duplicatedArticleInfo의 중개사별 매물도 개별 Property로 변환
             const dupList = item.duplicatedArticleInfo?.articleInfoList ?? [];
             for (const dupInfo of dupList) {
               const dupProperty = normalizeArticleInfo(dupInfo, complex.complexNumber, 1);
-              if (!dupProperty.complexName) dupProperty.complexName = complex.complexName;
               this.opts.onProperty(dupProperty);
               totalProperties++;
             }
@@ -175,15 +179,18 @@ export class CrawlerService {
           log(
             this.opts.onLog,
             'warn',
-            `  ⚠️ ${complex.complexName} 매물 오류: ${message} — 스킵`,
+            `  ⚠️ 단지 #${complex.complexNumber} 매물 오류: ${message} — 스킵`,
           );
           break;
         }
       }
 
-      log(this.opts.onLog, 'info', `  → 누적 매물: ${totalProperties}건`);
+      log(
+        this.opts.onLog,
+        'info',
+        `  → ${complex.complexName || `#${complex.complexNumber}`} 완료, 누적 매물: ${totalProperties}건`,
+      );
 
-      // 단지 간 딜레이
       if (i < complexes.length - 1 && !this._stopRequested) {
         await randomDelay(1000, 3000);
       }
@@ -197,10 +204,6 @@ export class CrawlerService {
     );
 
     this._running = false;
-    this.opts.onDone({
-      totalComplexes: complexes.length,
-      totalProperties,
-      duration,
-    });
+    this.opts.onDone({ totalComplexes: complexes.length, totalProperties, duration });
   }
 }

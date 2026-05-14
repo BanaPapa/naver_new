@@ -27,6 +27,9 @@ export function useCrawler() {
   const crawlerRef = useRef<CrawlerService | null>(null);
 
   const start = useCallback((config: CrawlerConfig) => {
+    crawlerRef.current?.stop();
+    crawlerRef.current = null;
+
     setState({
       status: 'running',
       logs: [],
@@ -37,7 +40,8 @@ export function useCrawler() {
     });
 
     const crawler = new CrawlerService({
-      keyword: config.keyword,
+      legalDivisionCode: config.legalDivisionCode,
+      legalDivisionName: config.legalDivisionName,
       tradeType: config.tradeType,
       realEstateType: config.realEstateType,
       spcMin: config.spcMin,

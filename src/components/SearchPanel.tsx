@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { RegionSelect } from './RegionSelect';
 import { FilterSelect } from './FilterSelect';
-import { RegionSelection, SPACE_OPTIONS } from '../types';
+import { RegionSelection, SPACE_OPTIONS, isExclusiveSpaceType } from '../types';
 import { CrawlerStatus } from '../hooks/useCrawler';
+
+const PYEONG_TO_SQM = 3.30579;
 
 interface SearchPanelProps {
   status: CrawlerStatus;
   onStart: (config: {
-    keyword: string;
+    legalDivisionCode: string;
+    legalDivisionName: string;
     tradeType: string;
     realEstateType: string;
     spcMin: number;
@@ -25,43 +28,61 @@ export function SearchPanel({ status, onStart, onStop }: SearchPanelProps) {
   const [realEstateType, setRealEstateType] = useState('APT:JGC:JGB');
   const [tradeType, setTradeType] = useState('A1');
   const [spaceIndex, setSpaceIndex] = useState(0);
+  const [exclusivePyeongMin, setExclusivePyeongMin] = useState(0);
+  const [exclusivePyeongMax, setExclusivePyeongMax] = useState(0);
+  const [spaceUnit, setSpaceUnit] = useState<'pyeong' | 'sqm'>('pyeong');
+
+  const handleRealEstateTypeChange = (v: string) => {
+    setRealEstateType(v);
+    setSpaceIndex(0);
+    setExclusivePyeongMin(0);
+    setExclusivePyeongMax(0);
+  };
 
   const isRunning = status === 'running';
   const disabled = isRunning;
+
+  const getLegalDivisionCode = (): string => {
+    const code = region.small?.code ?? region.mid?.code ?? region.large?.code ?? '';
+    if (code.length === 8) return code + '00';
+    if (code.length === 5) return code + '00000';
+    if (code.length === 2) return code + '00000000';
+    return code;
+  };
+
+  const buildPreview = (): string => {
+    const large = region.large?.name.trim() ?? '';
+    const mid = region.mid?.name.trim() ?? '';
+    const small = region.small?.name.trim() ?? '';
+    const parts: string[] = [];
+    if (mid && mid !== large) parts.push(mid);
+    else if (large) parts.push(large);
+    if (small) parts.push(small);
+    return parts.join(' ');
+  };
 
   const handleStart = () => {
     if (!region.large) {
       alert('시/도를 선택해주세요');
       return;
     }
-
-    // PRD §6: keyword는 중지역명+소지역명만 사용 (대지역명 제외)
-    // 예: "하남시 망월동" (서울특별시 등 대지역명 포함 시 검색 결과 0건)
-    const parts: string[] = [];
-    if (region.mid) parts.push(region.mid.name.trim());
-    if (region.small) parts.push(region.small.name.trim());
-    if (parts.length === 0 && region.large) parts.push(region.large.name.trim());
-    const keyword = parts.join(' ');
-
-    const space = SPACE_OPTIONS[spaceIndex];
-    onStart({
-      keyword,
-      tradeType,
-      realEstateType,
-      spcMin: space.spcMin,
-      spcMax: space.spcMax,
-    });
+    const legalDivisionCode = getLegalDivisionCode();
+    let spcMin: number;
+    let spcMax: number;
+    if (isExclusiveSpaceType(realEstateType)) {
+      spcMin = exclusivePyeongMin > 0 ? exclusivePyeongMin * PYEONG_TO_SQM : 0;
+      spcMax = exclusivePyeongMax > 0 ? exclusivePyeongMax * PYEONG_TO_SQM : 99999;
+    } else {
+      const space = SPACE_OPTIONS[spaceIndex];
+      spcMin = space.spcMin;
+      spcMax = space.spcMax;
+    }
+    const legalDivisionName = (region.small?.name ?? region.mid?.name ?? region.large?.name ?? '').trim();
+    onStart({ legalDivisionCode, legalDivisionName, tradeType, realEstateType, spcMin, spcMax });
   };
 
-  const getKeywordPreview = () => {
-    const parts: string[] = [];
-    if (region.mid) parts.push(region.mid.name.trim());
-    if (region.small) parts.push(region.small.name.trim());
-    if (parts.length === 0 && region.large) parts.push(region.large.name.trim());
-    return parts.length > 0 ? parts.join(' ') : null;
-  };
-
-  const keyword = getKeywordPreview();
+  const regionPreview = region.large ? buildPreview() : null;
+  const codePreview = region.large ? getLegalDivisionCode() : null;
 
   return (
     <div className="search-panel">
@@ -72,10 +93,11 @@ export function SearchPanel({ status, onStart, onStop }: SearchPanelProps) {
       <div className="panel-body">
         <RegionSelect value={region} onChange={setRegion} disabled={disabled} />
 
-        {keyword && (
+        {regionPreview && (
           <div className="keyword-preview">
-            <span className="keyword-label">검색어:</span>
-            <span className="keyword-value">{keyword}</span>
+            <span className="keyword-label">지역:</span>
+            <span className="keyword-value">{regionPreview}</span>
+            <span className="keyword-code">{codePreview}</span>
           </div>
         )}
 
@@ -83,9 +105,15 @@ export function SearchPanel({ status, onStart, onStop }: SearchPanelProps) {
           realEstateType={realEstateType}
           tradeType={tradeType}
           spaceIndex={spaceIndex}
-          onRealEstateTypeChange={setRealEstateType}
+          exclusivePyeongMin={exclusivePyeongMin}
+          exclusivePyeongMax={exclusivePyeongMax}
+          spaceUnit={spaceUnit}
+          onRealEstateTypeChange={handleRealEstateTypeChange}
           onTradeTypeChange={setTradeType}
           onSpaceIndexChange={setSpaceIndex}
+          onExclusivePyeongMinChange={setExclusivePyeongMin}
+          onExclusivePyeongMaxChange={setExclusivePyeongMax}
+          onSpaceUnitChange={setSpaceUnit}
           disabled={disabled}
         />
       </div>

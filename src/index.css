@@ -428,6 +428,13 @@ html, body {
   font-weight: 500;
 }
 
+.keyword-code {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: monospace;
+  margin-left: auto;
+}
+
 /* =============================================
    Buttons
    ============================================= */
@@ -1094,6 +1101,90 @@ html, body {
    ============================================= */
 .filter-select {
   /* inherits from form-group */
+}
+
+/* =============================================
+   Space Slider (전용면적 기준)
+   ============================================= */
+.space-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.space-unit-toggle {
+  display: flex;
+  gap: 3px;
+}
+
+.space-unit-btn {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.space-unit-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.space-unit-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.space-unit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.space-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.space-slider-label {
+  font-size: 13px;
+  color: var(--accent);
+  text-align: center;
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.space-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.space-slider-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  min-width: 30px;
+}
+
+input[type="range"].space-range {
+  flex: 1;
+  height: 4px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+input[type="range"].space-range:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* =============================================

@@ -104,7 +104,8 @@ export type SSEEvent =
 // 크롤러 설정
 // =============================================
 export interface CrawlerConfig {
-  keyword: string;
+  legalDivisionCode: string;
+  legalDivisionName: string;
   tradeType: string;
   realEstateType: string;
   spcMin: number;
@@ -130,11 +131,28 @@ export const REAL_ESTATE_TYPES: RealEstateTypeOption[] = [
   { label: '오피스텔 분양권', value: 'OBYG' },
   { label: '빌라', value: 'VL' },
   { label: '단독/다가구', value: 'DDDGG' },
-  { label: '전원주택', value: 'JWJT' },
-  { label: '상가주택', value: 'SGJT' },
   { label: '사무실', value: 'SMS' },
   { label: '지식산업센터', value: 'APTHGJ' },
 ];
+
+// 전용면적 기준으로 필터링하는 상품 유형
+export const EXCLUSIVE_SPACE_TYPES = ['OPST', 'OBYG', 'SMS', 'APTHGJ'];
+
+export function isExclusiveSpaceType(realEstateType: string): boolean {
+  return realEstateType.split(':').some((t) => EXCLUSIVE_SPACE_TYPES.includes(t));
+}
+
+// UI 코드 → Naver API 상품 유형 코드 매핑
+export const NAVER_TYPE_MAP: Record<string, string[]> = {
+  'APT:JGC:JGB': ['A01', 'A04', 'F01'],
+  'ABYG':        ['B01'],
+  'OPST':        ['A02'],
+  'OBYG':        ['B02'],
+  'VL':          ['A05', 'A06', 'A07', 'C02'],
+  'DDDGG':       ['C03'],
+  'SMS':         [],       // TODO: Naver API 코드 미확인
+  'APTHGJ':      [],       // TODO: Naver API 코드 미확인
+};
 
 export const TRADE_TYPES: TradeTypeOption[] = [
   { label: '매매', value: 'A1' },

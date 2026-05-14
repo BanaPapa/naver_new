@@ -7,10 +7,14 @@ interface LogPanelProps {
 }
 
 export function LogPanel({ logs, onClear }: LogPanelProps) {
+  const bodyRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // 페이지 전체 스크롤 대신 로그 컨테이너 내부만 스크롤
+    if (bodyRef.current) {
+      bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    }
   }, [logs]);
 
   const levelClass = (level: LogEntry['level']) => {
@@ -49,7 +53,7 @@ export function LogPanel({ logs, onClear }: LogPanelProps) {
         </button>
       </div>
 
-      <div className="log-body">
+      <div className="log-body" ref={bodyRef}>
         {logs.length === 0 ? (
           <div className="log-empty">로그가 없습니다</div>
         ) : (

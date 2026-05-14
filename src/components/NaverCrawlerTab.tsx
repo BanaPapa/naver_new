@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { SearchPanel } from './SearchPanel';
 import { Monitor } from './Monitor';
 import { LogPanel } from './LogPanel';
@@ -8,14 +8,11 @@ import { CrawlerConfig } from '../types';
 
 export function NaverCrawlerTab() {
   const { state, start, stop, reset } = useCrawler();
+  const [searchKey, setSearchKey] = useState(0);
 
   const handleStart = (config: CrawlerConfig) => {
+    setSearchKey((k) => k + 1);
     start(config);
-  };
-
-  const handleClearLogs = () => {
-    // logs는 immutable state이므로 reset으로 처리
-    // 단, 수집된 매물은 유지
   };
 
   return (
@@ -52,7 +49,7 @@ export function NaverCrawlerTab() {
                 </button>
               )}
             </div>
-            <ResultTable properties={state.properties} />
+            <ResultTable key={searchKey} properties={state.properties} />
           </div>
         )}
       </div>
